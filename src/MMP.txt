@@ -1,0 +1,11 @@
+µMessage-r Protocol:
+    This file defines commands that the Tiva TM4C123GH6PM LaunchPad will use to communicate with the main program (main.rs).
+    Designed by: Spencer Denton
+    Date: 5/2/2021
+
+
+Formatting:
+    Each message must start with an STX and end with an ETX. With a 16x8 FIFO and a 1byte read, this means I can receice a messgae of 17 u8 values.
+    Max Command Length: (17-2) = 15
+     
+

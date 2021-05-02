@@ -1,0 +1,6 @@
+/target
+email.txt
+login.txt
+check_mail.rs
+send_mail.rs
+serial_com.rs
