@@ -59,7 +59,7 @@ pub fn uart0_write_one_message(port: &mut COMPort, message: &[u8]) -> anyhow::Re
 pub fn uart0_init_port() -> anyhow::Result<COMPort> {
     let mut port = serial::open(OsStr::new("COM5"))?;
     const SETTINGS: PortSettings = PortSettings {
-        baud_rate: serial::BaudRate::Baud110,
+        baud_rate: serial::BaudRate::Baud1200,
         char_size: serial::CharSize::Bits8,
         parity: serial::Parity::ParityNone,
         stop_bits: serial::StopBits::Stop1,
