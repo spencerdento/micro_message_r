@@ -6,6 +6,7 @@ use uart0::{uart0_init_port, uart0_listen, uart0_write_one_message};
 use serial::windows::COMPort;
 
 mod uart0;
+mod commands;
 
 
 const STX: u8 = 0x02;
@@ -123,18 +124,23 @@ fn execute_command(command: Command) {
         },
         Command::Username(username) => {
             println!("Username: {}", username);
+            commands::set_username(username);
         },
         Command::At(at) => {
             println!("At: {}", at);
+            commands::set_at(at);
         },
         Command::Password(password) => {
             println!("Password: {}", password);
+            commands::set_password(password);
         },
         Command::SmtpAddr(smtp_addr) => {
             println!("SMTPAddr: {}", smtp_addr);
+            commands::set_smtp_addr(smtp_addr);
         },
         Command::ImapAddr(imap_addr) => {
             println!("IMAPAddr: {}", imap_addr);
+            commands::set_imap_addr(imap_addr);
         }
         Command::None => {
             println!("None");

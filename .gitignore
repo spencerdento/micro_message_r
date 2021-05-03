@@ -1,4 +1,5 @@
 /target
+test_info.txt
 email.txt
 client_info.txt
 check_mail.rs
