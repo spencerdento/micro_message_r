@@ -45,11 +45,11 @@ pub fn uart0_listen(port: &mut COMPort) -> anyhow::Result<String> {
             None => break,
         };
     }
-    
+
     Err(anyhow::Error::msg("Couldn't Read"))
 }
 
-pub fn _write_one_message(port: &mut COMPort, message: &[u8]) -> anyhow::Result<usize> {
+pub fn uart0_write_one_message(port: &mut COMPort, message: &[u8]) -> anyhow::Result<usize> {
     let tx_len = port.write(message)?;
     assert_eq!(tx_len, message.len());
     port.flush()?;
@@ -70,4 +70,3 @@ pub fn uart0_init_port() -> anyhow::Result<COMPort> {
 
     Ok(port)
 }
-

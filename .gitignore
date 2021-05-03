@@ -1,6 +1,6 @@
 /target
 email.txt
-login.txt
+client_info.txt
 check_mail.rs
 send_mail.rs
 serial_com.rs
