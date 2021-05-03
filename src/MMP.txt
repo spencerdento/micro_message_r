@@ -6,7 +6,7 @@
 Note: <example> indicates to replace with some value
 
 Formatting:
-    Each message must start with an STX and end with an ETX. With a 16x8 FIFO and a 1byte read, this means I can receice a messgae of 17 u8 values
+    Each message must start with an STX and end with an ETX. With a 16x8 FIFO and a 1byte read, this means I can receice a message of 17 u8 values
         Max Recieve Length: (17-2) = 15
     If the message consists of a COMMAND and OPERAND, an OK will be sent back to ask for the OPERAND after the COMMAND
     All caps
@@ -15,6 +15,8 @@ Commands:
     "CHECK MAIL": asks the computer to check for new messages in their inbox
             Response: "NEW": there is new mail to be fetched
                       "OLD": no new mail to be fetched
+
+    "TO <num>": asks the computer to set the recipient of the email in num parts, 0 < num < 5, OK will be sent after each part
     
     "USERNAME <num>": tells the computer it is about to send the username in num parts, 0 < num < 3, OK will be sent after each part
 

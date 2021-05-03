@@ -27,6 +27,7 @@ enum Command {
     Password(String),
     SmtpAddr(String),
     ImapAddr(String),
+    To(String),
     None,
 }
 
@@ -102,6 +103,13 @@ fn main() {
                 Err(_) => String::from("?"),
             };
             recieved_command = Command::ImapAddr(imap_addr);
+        } else if command.contains("TO ") {
+            let recieved_number = (command[(command.len()-1)..].as_bytes().get(0).unwrap()-48) as u32;
+            let to = match read_more(&mut com_5, recieved_number) {
+                Ok(string) => string,
+                Err(_) => String::from("?"),
+            };
+            recieved_command = Command::To(to);
         }
 
         execute_command(recieved_command);
@@ -141,7 +149,10 @@ fn execute_command(command: Command) {
         Command::ImapAddr(imap_addr) => {
             println!("IMAPAddr: {}", imap_addr);
             commands::set_imap_addr(imap_addr);
-        }
+        },
+        Command::To(to) => {
+            println!("To: {}", to);
+        },
         Command::None => {
             println!("None");
         },
