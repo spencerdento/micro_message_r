@@ -11,7 +11,8 @@ mod uart0;
 const STX: u8 = 0x02;
 const ETX: u8 = 0x03;
 const OK_UART_MESSAGE: [u8; 4] = [STX, b'O', b'K', ETX];
-
+const SENT_UART_MESSAGE: [u8; 6] = [STX, b'S', b'E', b'N', b'T', ETX];
+const BAD_UART_MESSAGE: [u8; 5] = [STX, b'B', b'A', b'D', ETX];
 enum Operand {
     Addr,
     Subject,
@@ -27,6 +28,8 @@ enum Command {
     SmtpAddr(String),
     ImapAddr(String),
     To(String),
+    Body(String),
+    Submit,
     None,
 }
 
@@ -119,13 +122,23 @@ fn main() {
                 Err(_) => String::from("?"),
             };
             recieved_command = Command::To(to);
+        } else if command.contains("BODY ") {
+            let recieved_number =
+                (command[(command.len() - 1)..].as_bytes().get(0).unwrap() - 48) as u32;
+            let body = match read_more(&mut com_5, recieved_number) {
+                Ok(string) => string,
+                Err(_) => String::from("?"),
+            };
+            recieved_command = Command::Body(body);
+        } else if command.contains("SUBMIT") {
+            recieved_command = Command::Submit;
         }
 
-        execute_command(recieved_command);
+        execute_command(recieved_command, &mut com_5);
     }
 }
 
-fn execute_command(command: Command) {
+fn execute_command(command: Command, port: &mut COMPort) {
     match command {
         Command::CheckMail => {
             println!("Check Mail");
@@ -161,6 +174,24 @@ fn execute_command(command: Command) {
         }
         Command::To(to) => {
             println!("To: {}", to);
+            commands::set_to(to);
+        }
+        Command::Body(body) => {
+            println!("Body: {}", body);
+            commands::set_body(body);
+        }
+        Command::Submit => {
+            println!("Submit!");
+            match commands::submit() {
+                Ok(message) => {
+                    uart0_write_one_message(port, &SENT_UART_MESSAGE[..]).unwrap();
+                    println!("{}", message);
+                },
+                Err(_) => {
+                    uart0_write_one_message(port, &BAD_UART_MESSAGE[..]).unwrap();
+                    println!("BAD");
+                },
+            };
         }
         Command::None => {
             println!("None");

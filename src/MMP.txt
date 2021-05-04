@@ -17,6 +17,12 @@ Commands:
                       "OLD": no new mail to be fetched
 
     "TO <num>": asks the computer to set the recipient of the email in num parts, 0 < num < 5, OK will be sent after each part
+
+    "BODY <num>": asks the computer to set the body of the email in num parts, 0 < num < 10, OK will be sent after each part
+
+    "SUBMIT": tells the computer to send the written email
+            Response: "SENT": the message was sent successfully
+                       "BAD": the message wasn't sent successfully
     
     "USERNAME <num>": tells the computer it is about to send the username in num parts, 0 < num < 3, OK will be sent after each part
 
