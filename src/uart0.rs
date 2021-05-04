@@ -70,3 +70,11 @@ pub fn uart0_init_port() -> anyhow::Result<COMPort> {
 
     Ok(port)
 }
+
+pub fn uart0_write_formatted(port: &mut COMPort, message: String) -> anyhow::Result<usize> {
+    let mut bytes_message = vec![STX];
+    bytes_message.extend_from_slice(message.as_bytes());
+    bytes_message.push(ETX);
+
+    return uart0_write_one_message(port, &bytes_message)
+}

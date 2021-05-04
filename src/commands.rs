@@ -5,7 +5,9 @@ use std::fs;
 
 use anyhow::Error;
 
-use self::send_mail::send_email;
+use crate::Operand;
+
+use self::{check_mail::{email_login, get_email}, send_mail::send_email};
 
 mod send_mail {
     use lettre::{SmtpTransport, Transport, smtp::response::Response};
@@ -29,6 +31,45 @@ mod send_mail {
         let mailer = mailer.credentials(lettre::smtp::authentication::Credentials::new(username.into(), password.into())).transport();
 
         Ok(mailer)
+    }
+}
+//NOTE: this doesn't log out
+mod check_mail {
+    use std::{fs, net::TcpStream};
+    use anyhow::Error;
+    use imap::Session;
+    use native_tls::{TlsConnector, TlsStream};
+
+    pub fn email_login(domain: &str, username: &str, password: &str) -> anyhow::Result<Session<TlsStream<TcpStream>>> {
+        let tls = TlsConnector::builder().build()?;
+        //make a new client at the address of the domain and port, double check with domain, and give it a TLS connector
+        let client = imap::connect((domain, 993), domain, &tls)?;
+    
+        //now i start my session
+        match client.login(username, password) {
+            Ok(x) => Ok(x),
+            Err((e, _)) => Err(Error::new(e))
+        }
+    }
+
+    pub fn get_email(my_session: &mut Session<TlsStream<TcpStream>>, email_number: u32) -> anyhow::Result<&str> {
+
+        //select my inbox and get the number of messages
+        let inbox_len = my_session.select("INBOX")?.exists;
+
+        let my_fetch = my_session.fetch((inbox_len-email_number+1).to_string(), "RFC822")?;
+
+        for mail in my_fetch.iter() {
+            match mail.body() {
+                Some(body) => {
+                    fs::write("email.txt", body)?;
+                },
+                None => {
+                    return Err(Error::msg("Message was unreadable."));
+                }
+            };
+        }
+        Ok("email.txt")
     }
 }
 
@@ -186,51 +227,132 @@ pub fn set_body(body: String) {
 
 pub fn submit() -> anyhow::Result<String> {
     //construct the credentials
-    let mut credentials_string = fs::read_to_string("client_info.txt").unwrap();
     //1) get email
-    let index_email = credentials_string.find("Email: ").unwrap() + 7;
-    let truncated_credentials = &mut credentials_string[index_email..];
-    let index_newline = truncated_credentials.find('\r').unwrap();
-    let split_slices = truncated_credentials.split_at(index_newline);
-    let email = split_slices.0;
+    let email = &get_email_username()[..];
     //2) get password
-    let mut credentials_string = fs::read_to_string("client_info.txt").unwrap();
-    let index_password = credentials_string.find("Password: ").unwrap() + 10;
-    let truncated_credentials = &mut credentials_string[index_password..];
-    let index_newline = truncated_credentials.find('\r').unwrap();
-    let split_slices = truncated_credentials.split_at(index_newline);
-    let password = split_slices.0;
+    let password = &get_password()[..];
     //3) get SMTP server address
-    let mut credentials_string = fs::read_to_string("client_info.txt").unwrap();
-    let index_smtp = credentials_string.find("SMTP: ").unwrap() + 6;
-    let truncated_credentials = &mut credentials_string[index_smtp..];
-    let index_newline = truncated_credentials.find('\r').unwrap();
-    let split_slices = truncated_credentials.split_at(index_newline);
-    let smtp_addr = split_slices.0;
+    let smtp_addr = &get_smtp_addr()[..];
 
     //construct the email
-    let mut email_string = fs::read_to_string("email_draft.txt").unwrap();
     //1) get TO
-    let index_to = email_string.find("To: ").unwrap() + 4;
-    let truncated_email = &mut email_string[index_to..];
-    let index_newline = truncated_email.find('\r').unwrap();
-    let split_slices = truncated_email.split_at(index_newline);
-    let to = split_slices.0;
+    let to = &get_to()[..];
     //2) get body
-    let mut email_string = fs::read_to_string("email_draft.txt").unwrap();
-    let index_body = email_string.find("Body: ").unwrap() + 6;
-    let truncated_email = &mut email_string[index_body..];
-    let index_newline = truncated_email.find('\r').unwrap();
-    let split_slices = truncated_email.split_at(index_newline);
-    let body = split_slices.0;
+    let body = &get_body_to_send()[..];
 
     match send_email(to, smtp_addr, email, password, body) {
         Ok(_) => Ok(String::from("SENT")),
         Err(_) => Err(Error::msg("BAD")),
     }
-    
 }
 
+pub fn fetch(num: u32, operand: Operand) -> anyhow::Result<String> {
+    let mut my_session;
+    match email_login(&get_imap_addr()[..], &get_email_username()[..], &get_password()) {
+        Ok(x) => {my_session = x},
+        Err(_) => return Err(Error::msg("couldn't login")),
+    };
 
+    match get_email(&mut my_session, num) {
+        Ok(message) => println!("{}", message),
+        Err(_) => return Err(Error::msg("couldn't get email")),
+    };
 
+    match operand {
+        Operand::Addr => {
+            return Ok(get_from_email_addr())
+        },
+        Operand::Subject => {
+            return Ok(get_from_subject())
+        },
+        Operand::Text => {
+            return Ok(get_from_text())
+        },
+        Operand::None => {
+            return Err(Error::msg("No operand"))
+        },
+    };
+}
+
+fn get_from_email_addr() -> String {
+    let mut email_string = fs::read_to_string("email.txt").unwrap();
+    let index_from = email_string.find("From: ").unwrap() + 6;
+    let truncated_email = &mut email_string[index_from..];
+    let index_email = truncated_email.find("<").unwrap() + 1;
+    let index_end_email = truncated_email.find(">").unwrap();
+    truncated_email[index_email..index_end_email].to_string()
+}
+
+fn get_from_subject() -> String {
+    let mut email_string = fs::read_to_string("email.txt").unwrap();
+    let index_subject = email_string.find("Subject: ").unwrap() + 9;
+    let truncated_email = &mut email_string[index_subject..];
+    let index_newline = truncated_email.find('\r').unwrap();
+    let split_slices = truncated_email.split_at(index_newline);
+    split_slices.0.to_string()
+}
+
+fn get_from_text() -> String {
+    let mut email_string = fs::read_to_string("email.txt").unwrap();
+    let index_charset = email_string.find("charset").unwrap() + 7;
+    let truncated_text = &mut email_string[index_charset..];
+    let index_start_text = truncated_text.find('\r').unwrap() + 1;
+    let truncated_text = &truncated_text[index_start_text..];
+    let index_end_text = truncated_text.find("-").unwrap();
+    truncated_text[..index_end_text].trim().to_string()
+}
+
+fn get_imap_addr() -> String {
+    let mut credentials_string = fs::read_to_string("client_info.txt").unwrap();
+    let index_imap = credentials_string.find("IMAP: ").unwrap() + 6;
+    let truncated_credentials = &mut credentials_string[index_imap..];
+    let index_newline = truncated_credentials.find('\r').unwrap();
+    let split_slices = truncated_credentials.split_at(index_newline);
+    split_slices.0.to_string()
+}
+
+fn get_email_username() -> String {
+    let mut credentials_string = fs::read_to_string("client_info.txt").unwrap();
+    let index_email = credentials_string.find("Email: ").unwrap() + 7;
+    let truncated_credentials = &mut credentials_string[index_email..];
+    let index_newline = truncated_credentials.find('\r').unwrap();
+    let split_slices = truncated_credentials.split_at(index_newline);
+    split_slices.0.to_string()
+}
+
+fn get_password() -> String {
+    let mut credentials_string = fs::read_to_string("client_info.txt").unwrap();
+    let index_password = credentials_string.find("Password: ").unwrap() + 10;
+    let truncated_credentials = &mut credentials_string[index_password..];
+    let index_newline = truncated_credentials.find('\r').unwrap();
+    let split_slices = truncated_credentials.split_at(index_newline);
+    split_slices.0.to_string()
+}
+
+fn get_smtp_addr() -> String {
+    let mut credentials_string = fs::read_to_string("client_info.txt").unwrap();
+    let index_smtp = credentials_string.find("SMTP: ").unwrap() + 6;
+    let truncated_credentials = &mut credentials_string[index_smtp..];
+    let index_newline = truncated_credentials.find('\r').unwrap();
+    let split_slices = truncated_credentials.split_at(index_newline);
+    split_slices.0.to_string()
+}
+
+fn get_to() -> String {
+    let mut email_string = fs::read_to_string("email_draft.txt").unwrap();
+    let index_to = email_string.find("To: ").unwrap() + 4;
+    let truncated_email = &mut email_string[index_to..];
+    let index_newline = truncated_email.find('\r').unwrap();
+    let split_slices = truncated_email.split_at(index_newline);
+    split_slices.0.to_string()
+}
+
+fn get_body_to_send() -> String {
+    let mut email_string = fs::read_to_string("email_draft.txt").unwrap();
+    let index_body = email_string.find("Body: ").unwrap() + 6;
+    let truncated_email = &mut email_string[index_body..];
+    let index_newline = truncated_email.find('\r').unwrap();
+    let split_slices = truncated_email.split_at(index_newline);
+    split_slices.0.to_string()
+}
 

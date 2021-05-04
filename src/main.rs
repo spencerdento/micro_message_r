@@ -5,6 +5,8 @@
 use serial::windows::COMPort;
 use uart0::{uart0_init_port, uart0_listen, uart0_write_one_message};
 
+use crate::{commands::fetch, uart0::uart0_write_formatted};
+
 mod commands;
 mod uart0;
 
@@ -13,7 +15,7 @@ const ETX: u8 = 0x03;
 const OK_UART_MESSAGE: [u8; 4] = [STX, b'O', b'K', ETX];
 const SENT_UART_MESSAGE: [u8; 6] = [STX, b'S', b'E', b'N', b'T', ETX];
 const BAD_UART_MESSAGE: [u8; 5] = [STX, b'B', b'A', b'D', ETX];
-enum Operand {
+pub enum Operand {
     Addr,
     Subject,
     Text,
@@ -151,6 +153,16 @@ fn execute_command(command: Command, port: &mut COMPort) {
                 Operand::None => String::from("None"),
             };
             println!("Fetch, num: {}, operand: {}", num, operand_name);
+            match fetch(num, operand) {
+                Ok(string) => {
+                    println!("{} fetched", string);
+                    match uart0_write_formatted(port, string) {
+                        Ok(num) => println!("Sent {}", num),
+                        Err(_) => println!("Didn't send requested info"),
+                    };
+                },
+                Err(_) => println!("couldn't fetch"),
+            };
         }
         Command::Username(username) => {
             println!("Username: {}", username);
