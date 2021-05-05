@@ -144,6 +144,16 @@ fn execute_command(command: Command, port: &mut COMPort) {
     match command {
         Command::CheckMail => {
             println!("Check Mail");
+            match commands::checkmail() {
+                Ok(string) => {
+                    println!("{}", string);
+                    match uart0_write_formatted(port, string) {
+                        Ok(num) => println!("Sent {}", num),
+                        Err(_) => println!("Didn't send requested info"),
+                    };
+                },
+                Err(msg) => println!("{:?}", msg),
+            };
         }
         Command::Fetch { num, operand } => {
             let operand_name = match operand {
@@ -208,6 +218,10 @@ fn execute_command(command: Command, port: &mut COMPort) {
         Command::None => {
             println!("None");
         }
+    };
+    match uart0_write_formatted(port, String::from("OK")){
+        Ok(num_outted) => println!("{}, OK", num_outted),
+        Err(msg) => println!("{:?}", msg),
     };
 }
 

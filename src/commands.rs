@@ -7,7 +7,7 @@ use anyhow::Error;
 
 use crate::Operand;
 
-use self::{check_mail::{email_login, get_email}, send_mail::send_email};
+use self::{check_mail::{email_login, get_email, write_flags}, send_mail::send_email};
 
 mod send_mail {
     use lettre::{SmtpTransport, Transport, smtp::response::Response};
@@ -70,6 +70,23 @@ mod check_mail {
             };
         }
         Ok("email.txt")
+    }
+
+    pub fn write_flags(my_session: &mut Session<TlsStream<TcpStream>>) -> anyhow::Result<&str> {
+
+        //examine (READ ONLY) my inbox and get the number of messages
+        let inbox_len = my_session.examine("INBOX")?.exists;
+
+        let my_fetch = my_session.fetch(inbox_len.to_string(), "FLAGS")?;
+
+        for mail in my_fetch.iter() {
+            let mut flags_string = String::new();
+            for flags in mail.flags() {
+                flags_string.push_str(&flags.to_string()[..]);
+            }
+            fs::write("flags.txt", flags_string).unwrap();
+        }
+        Ok("flags.txt")
     }
 }
 
@@ -272,6 +289,28 @@ pub fn fetch(num: u32, operand: Operand) -> anyhow::Result<String> {
             return Err(Error::msg("No operand"))
         },
     };
+}
+
+pub fn checkmail() -> anyhow::Result<String> {
+    //1) LOGIN TO IMAP
+    let mut my_session;
+    match email_login(&get_imap_addr()[..], &get_email_username()[..], &get_password()) {
+        Ok(x) => {my_session = x},
+        Err(_) => return Err(Error::msg("couldn't login")),
+    };
+
+    //2) Write flags to file
+    match write_flags(&mut my_session) {
+        Ok(msg) => println!("{}", msg),
+        Err(error) => return Err(error),
+    };
+
+    let flags_string = fs::read_to_string("flags.txt").unwrap();
+    if !flags_string.contains("Seen") {
+        Ok(String::from("NEW"))
+    } else {
+        Ok(String::from("OLD"))
+    }
 }
 
 fn get_from_email_addr() -> String {
